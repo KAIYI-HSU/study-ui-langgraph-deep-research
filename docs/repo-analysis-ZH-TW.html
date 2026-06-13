@@ -1,0 +1,716 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>study-ui-langgraph-deep-research 完整技術分析報告</title>
+<style>
+  :root {
+    --bg: #0f1419;
+    --panel: #1a2027;
+    --panel-2: #232a33;
+    --border: #2d3540;
+    --text: #e6edf3;
+    --text-dim: #a3acb8;
+    --accent: #6cb6ff;
+    --accent-2: #a371f7;
+    --good: #5ec27e;
+    --warn: #f0b76b;
+    --bad: #ff7b72;
+    --code-bg: #0d1117;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: "Noto Sans TC", -apple-system, "PingFang TC", "Microsoft JhengHei", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.75;
+  }
+  .container { max-width: 1100px; margin: 0 auto; padding: 48px 24px 120px; }
+  h1 { font-size: 2.4rem; margin: 0 0 8px; border-bottom: 2px solid var(--accent); padding-bottom: 12px; }
+  h2 { font-size: 1.8rem; margin-top: 56px; color: var(--accent); border-left: 4px solid var(--accent); padding-left: 12px; }
+  h3 { font-size: 1.3rem; margin-top: 32px; color: var(--accent-2); }
+  h4 { font-size: 1.05rem; margin-top: 20px; color: var(--text); }
+  p, li { color: var(--text); }
+  a { color: var(--accent); }
+  code { background: var(--code-bg); padding: 2px 6px; border-radius: 4px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.92em; color: #ffd277; }
+  pre {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+    overflow-x: auto;
+    font-size: 0.88rem;
+    line-height: 1.55;
+  }
+  pre code { background: transparent; padding: 0; color: var(--text); }
+  blockquote { border-left: 4px solid var(--accent-2); margin: 16px 0; padding: 8px 16px; background: var(--panel); color: var(--text-dim); border-radius: 4px; }
+  table { border-collapse: collapse; width: 100%; margin: 16px 0; }
+  th, td { border: 1px solid var(--border); padding: 10px 14px; text-align: left; }
+  th { background: var(--panel-2); color: var(--accent); }
+  tr:nth-child(even) td { background: var(--panel); }
+  .meta { color: var(--text-dim); font-size: 0.95rem; margin-bottom: 32px; }
+  .toc { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 20px 32px; }
+  .toc ol { margin: 0; padding-left: 20px; }
+  .toc li { margin: 4px 0; }
+  .toc a { text-decoration: none; }
+  .toc a:hover { text-decoration: underline; }
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 720px) { .grid-2 { grid-template-columns: 1fr; } }
+  .card { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 16px 20px; }
+  .card.pros { border-left: 4px solid var(--good); }
+  .card.cons { border-left: 4px solid var(--bad); }
+  .badge { display: inline-block; padding: 2px 10px; border-radius: 12px; font-size: 0.78rem; margin-right: 6px; font-weight: 600; }
+  .badge.green { background: rgba(94,194,126,0.18); color: var(--good); }
+  .badge.orange { background: rgba(240,183,107,0.18); color: var(--warn); }
+  .badge.red { background: rgba(255,123,114,0.18); color: var(--bad); }
+  .badge.blue { background: rgba(108,182,255,0.18); color: var(--accent); }
+  .badge.purple { background: rgba(163,113,247,0.18); color: var(--accent-2); }
+  .diagram {
+    background: var(--panel);
+    border: 1px dashed var(--border);
+    border-radius: 8px;
+    padding: 24px;
+    font-family: ui-monospace, monospace;
+    font-size: 0.85rem;
+    white-space: pre;
+    overflow-x: auto;
+    color: var(--text);
+  }
+  .lifecycle-step {
+    background: var(--panel);
+    border-left: 4px solid var(--accent);
+    padding: 12px 18px;
+    margin: 12px 0;
+    border-radius: 4px;
+  }
+  .lifecycle-step .step-num { color: var(--accent-2); font-weight: 700; font-size: 1.05rem; }
+  .prompt-box {
+    background: var(--code-bg);
+    border: 2px solid var(--accent-2);
+    border-radius: 8px;
+    padding: 20px;
+    margin: 20px 0;
+    font-family: ui-monospace, monospace;
+    font-size: 0.88rem;
+    white-space: pre-wrap;
+    line-height: 1.6;
+    color: #d0d7de;
+  }
+  .callout { background: var(--panel-2); border: 1px solid var(--border); border-left: 4px solid var(--warn); padding: 12px 16px; border-radius: 4px; margin: 16px 0; }
+  hr { border: none; border-top: 1px solid var(--border); margin: 32px 0; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<h1>study-ui-langgraph-deep-research<br><small style="font-size:1.3rem;color:var(--text-dim)">完整技術分析與 LangGraph × UI 串接生命週期研究</small></h1>
+<div class="meta">
+  撰寫日期：2026-05-11　|　分析分支：<code>claude/research-langgraph-ui-Tf4pJ</code>　|　主要語言：Python (Backend) / TypeScript-React (Frontend)
+</div>
+
+<div class="toc">
+<strong>目錄</strong>
+<ol>
+  <li><a href="#sec-overview">專案總覽與定位</a></li>
+  <li><a href="#sec-arch">整體架構</a></li>
+  <li><a href="#sec-backend">後端 (LangGraph) 技術細節</a></li>
+  <li><a href="#sec-frontend">前端 (React) 技術細節</a></li>
+  <li><a href="#sec-langgraph-ui">LangGraph 串接 UI：Plan / Task 呈現機制</a></li>
+  <li><a href="#sec-hitl">Human-in-the-Loop 機制分析</a></li>
+  <li><a href="#sec-lifecycle">完整生命週期 (Lifecycle) 章節</a></li>
+  <li><a href="#sec-pros-cons">優缺點評估</a></li>
+  <li><a href="#sec-prompt">交付給其他 Coding Agent 的覆現 Prompt</a></li>
+  <li><a href="#sec-conclusion">結論與建議</a></li>
+</ol>
+</div>
+
+<!-- ============================================================ -->
+<h2 id="sec-overview">1. 專案總覽與定位</h2>
+<p>
+此 repo 是 <strong>Gemini Fullstack LangGraph Quickstart</strong> 的「增強分支」(Enhanced Version),作者為 Peng.G。
+原始版本展示了一個「以 LLM 反思 (Reflection) 為核心」的單階段研究 Agent;本版本則將其升級為:
+</p>
+<ul>
+  <li><strong>多任務規劃 (Multi-Task Planning)</strong>:由 <code>planner_node</code> 先把使用者問題拆解成多個子研究任務,逐一執行。</li>
+  <li><strong>雙層評估 (Reflection + Enhanced Evaluation)</strong>:在反思之外再加一層 <code>evaluate_research_enhanced</code> 把「是否繼續研究」「是否需要 Firecrawl 增強」獨立成決策邊。</li>
+  <li><strong>內容深度增強 (Content Enhancement)</strong>:整合 Firecrawl,對 Gemini Search 拿不到完整正文的關鍵 URL 做深度抓取。</li>
+  <li><strong>整體式報告合成 (Holistic Integrated Report)</strong>:由 task-by-task 拼接改為單次大型 LLM 合成,提升敘事一致性。</li>
+  <li><strong>前端 Think Panel</strong>:在右側獨立面板呈現 Plan、各 Task、各 Step (查詢生成 / 網路研究 / 反思 / 增強 / 評估 / 完成) 的層次化視覺化,並以 sessionStorage 累積事件,離線可重算。</li>
+</ul>
+
+<div class="callout">
+<strong>核心觀察:</strong>此專案的價值不僅在於「能跑」,而在於它示範了一個常見的 LangGraph 痛點解法 —— 如何把<strong>純 graph state 的事件流</strong>,轉成<strong>使用者可理解的「計畫 → 任務 → 步驟」階層</strong>。這個轉換邏輯集中在 <code>frontend/src/utils/dataTransformer.ts</code>,是本 repo 最具參考價值的部分。
+</div>
+
+<!-- ============================================================ -->
+<h2 id="sec-arch">2. 整體架構</h2>
+
+<div class="diagram">
+┌──────────────────────────────┐         ┌──────────────────────────────────────────┐
+│  React Frontend (Vite)       │         │  Backend (LangGraph + FastAPI)           │
+│  - useStream() hook (SDK)    │  HTTP   │  - langgraph.json: agent + http app      │
+│  - sessionStorage 累積事件   │ ◀────▶ │  - StateGraph(OverallState)              │
+│  - dataTransformer → 層次化  │ stream  │    planner → generate_query → ...        │
+│  - ResearchThinkPanel        │         │  - Firecrawl / Google Search 工具        │
+│  - ActivityTimeline (精簡)   │         │  - Gemini 2.0/2.5 (query/reflect/answer) │
+└──────────────────────────────┘         └──────────────────────────────────────────┘
+        ▲                                            │
+        │ React 19 + Tailwind 4 + shadcn/ui          ▼
+        │                                  ┌──────────────────────────┐
+        └──────────────────────────────────┤ LangGraph Server 內建    │
+                                           │ /threads, /runs (SSE)    │
+                                           └──────────────────────────┘
+</div>
+
+<h3>2.1 服務拓撲</h3>
+<ul>
+  <li><strong>開發模式</strong>:<code>langgraph dev</code> 起 <code>http://localhost:2024</code>,前端 Vite 起 <code>http://localhost:5173</code>,透過 SDK 連到 2024。</li>
+  <li><strong>生產模式</strong>:Dockerfile 將 React build 後的 <code>dist/</code> 由 FastAPI 以 <code>/app</code> 子路徑掛載,LangGraph 路由佔用根路徑,並需 Redis (streaming pub-sub) + Postgres (assistants / threads / 持久化)。</li>
+  <li><strong>登錄點</strong>:<code>backend/langgraph.json</code> 註冊兩個東西 —— <code>graphs.agent = ./src/agent/graph.py:graph</code> 與 <code>http.app = ./src/agent/app.py:app</code>。</li>
+</ul>
+
+<!-- ============================================================ -->
+<h2 id="sec-backend">3. 後端 (LangGraph) 技術細節</h2>
+
+<h3>3.1 核心檔案組成</h3>
+<table>
+<tr><th>檔案</th><th>行數</th><th>角色</th></tr>
+<tr><td><code>agent/graph.py</code></td><td>1221</td><td>StateGraph 主圖、所有節點函式、引用清理工具</td></tr>
+<tr><td><code>agent/state.py</code></td><td>95</td><td><code>OverallState</code> TypedDict、ledger、reflection / evaluation 結果欄位</td></tr>
+<tr><td><code>agent/prompts.py</code></td><td>433</td><td>所有 LLM Prompt 範本(query / web / reflection / planning / integrated_report)</td></tr>
+<tr><td><code>agent/tools_and_schemas.py</code></td><td>39</td><td>Pydantic Schemas:SearchQueryList、Reflection、ResearchPlan、LedgerEntry</td></tr>
+<tr><td><code>agent/enhanced_graph_nodes.py</code></td><td>269</td><td>內容增強分析節點與決策邊</td></tr>
+<tr><td><code>agent/content_enhancement_decision.py</code></td><td>285</td><td>Firecrawl 增強決策器(LLM 判斷 + 優先 URL 計分)</td></tr>
+<tr><td><code>agent/report_level_enhancement.py</code></td><td>374</td><td>finalize 前的報告級內容補強</td></tr>
+<tr><td><code>agent/configuration.py</code></td><td>60</td><td>RunnableConfig 解析,提供 model / loop 參數</td></tr>
+<tr><td><code>agent/app.py</code></td><td>61</td><td>FastAPI 包前端靜態檔(以 <code>/app</code> 掛載,避開 LangGraph 路由)</td></tr>
+</table>
+
+<h3>3.2 狀態模型 OverallState</h3>
+<p>用 LangGraph 的 <code>Annotated[list, operator.add]</code> 累加器來支援平行分支的結果合併,是這類 fan-out / fan-in 圖的標準做法。</p>
+<pre><code>class OverallState(TypedDict):
+    messages: Annotated[list, add_messages]      # 對話歷史
+    user_query: str
+    plan: list                                   # planner 輸出的任務列表
+    current_task_pointer: int                    # 當前任務索引
+    executed_search_queries: Annotated[list, operator.add]
+    web_research_result: Annotated[list, operator.add]
+    sources_gathered: Annotated[list, operator.add]
+    research_loop_count: int
+
+    # Day-2:多任務迭代
+    ledger: Annotated[List[LedgerEntry], operator.add]
+    global_summary_memory: Annotated[List[str], operator.add]
+
+    # Day-3:富合成
+    current_task_detailed_findings: Annotated[List[Dict], operator.add]
+    task_specific_results: Annotated[List[Dict], operator.add]
+    final_report_markdown: Optional[str]
+
+    # Reflection 結果
+    reflection_is_sufficient: Optional[bool]
+    reflection_knowledge_gap: Optional[str]
+    reflection_follow_up_queries: Optional[List[str]]
+
+    # 強化評估
+    evaluation_is_sufficient: Optional[bool]
+    evaluation_should_continue: Optional[bool]
+    evaluation_follow_up_queries: Optional[List[str]]
+    evaluation_research_complete: Optional[bool]
+
+    # 內容增強
+    enhancement_decision: Optional[Dict]
+    enhancement_status: Optional[str]   # skipped/completed/failed/error
+    enhanced_content_results: Optional[List[Dict]]
+    enhanced_sources_count: Optional[int]</code></pre>
+
+<h3>3.3 Graph 拓樸</h3>
+<div class="diagram">
+START
+  └─▶ planner ──▶ generate_query ──┐ (conditional fan-out)
+                                    ├─▶ web_research (Send × N)
+                                    │       │
+                                    │       ▼
+                                    │   reflection
+                                    │       │
+                                    │       ▼ should_enhance_content?
+                                    │   ┌───┴───────────────┐
+                                    │   ▼                   ▼
+                                    │ content_enhancement   │
+                                    │   │                   │
+                                    │   └────▶ evaluate_research_enhanced
+                                    │                  │ decide_next_research_step
+                                    │   ┌──────────────┴──────────┐
+                                    │   ▼ (follow-up Send)        ▼
+                                    └ web_research          record_task_completion
+                                                                  │
+                                                                  ▼ decide_next_step_in_plan
+                                                       ┌──────────┴──────────┐
+                                                       ▼                     ▼
+                                                 generate_query        finalize_answer
+                                                  (下一個任務)              │
+                                                                            ▼
+                                                                           END
+</div>
+
+<h3>3.4 關鍵節點解析</h3>
+<ul>
+  <li><strong>planner_node</strong>:用結構化輸出 (<code>ResearchPlan</code> Pydantic) 一次取得多個 <code>ResearchTask</code>,設定 <code>current_task_pointer=0</code>。</li>
+  <li><strong>generate_query</strong>:依當前 task 的 description 產生 N 個查詢(Effort 控制:low=1, medium=3, high=5)。</li>
+  <li><strong>continue_to_web_research</strong>:條件邊用 <code>Send</code> 物件平行 fan-out N 個 <code>web_research</code> 子節點。</li>
+  <li><strong>web_research</strong>:用 <code>google.genai.Client</code> 原生(非 LangChain)呼叫以取得 <code>grounding_metadata</code>,做 URL resolve + 引用插入。</li>
+  <li><strong>reflection</strong>:嘗試 structured output(<code>Reflection</code>),失敗時 fallback 為 text + regex JSON,再 fallback 為「>= 3 筆視為充足」的硬規則。</li>
+  <li><strong>content_enhancement_analysis</strong>:LLM 判斷是否需要 Firecrawl 抓內文;若 <code>FIRECRAWL_API_KEY</code> 缺則直接 <code>enhancement_status = "skipped_no_api"</code>。</li>
+  <li><strong>evaluate_research_enhanced</strong>:把 reflection 結論與「增強加分」(每增強源 +0.3,封頂 0.8)合成最終 <code>evaluation_is_sufficient</code>。</li>
+  <li><strong>record_task_completion_node</strong>:把當前 task 的發現摘要寫入 <code>ledger</code>,清空 <code>current_task_detailed_findings</code>,指針 +1。</li>
+  <li><strong>finalize_answer</strong>:統合所有 ledger + task_specific_results,先呼叫 <code>integrate_report_enhancement_into_finalize</code> 做最後一層增強,再用 <code>tiktoken</code> 切到 120k tokens 內,單次 LLM 整合輸出。最後做清理(<code>clean_generated_content</code> / <code>remove_prompt_remnants</code> / <code>final_quality_check</code>)。</li>
+</ul>
+
+<h3>3.5 容錯設計亮點</h3>
+<ul>
+  <li>Reflection 有三層 fallback,確保不會卡住整個圖。</li>
+  <li>Web research 失敗時仍會回傳 <code>error_content</code> 並帶上 <code>task_id</code>,讓下游不丟資料。</li>
+  <li>引用清理:<code>clean_malformed_citations</code> + <code>final_quality_check</code> 處理 Vertex AI 短網址污染。</li>
+  <li>Token 預算:<code>split_by_tokens</code> 用 cl100k_base 計數,提取 factual / critical section 優先保留。</li>
+</ul>
+
+<!-- ============================================================ -->
+<h2 id="sec-frontend">4. 前端 (React) 技術細節</h2>
+
+<h3>4.1 技術棧</h3>
+<ul>
+  <li>React 19 + Vite 6 + TypeScript 5.7</li>
+  <li>Tailwind 4 + shadcn/ui + Radix Primitives + lucide-react</li>
+  <li><strong><code>@langchain/langgraph-sdk</code> 0.0.74</strong> — 透過 <code>useStream</code> hook 直連 LangGraph Server</li>
+  <li>react-markdown(渲染最終 markdown 報告)、react-router-dom v7</li>
+</ul>
+
+<h3>4.2 元件樹</h3>
+<div class="diagram">
+App.tsx (持有 thread state)
+  ├─ WelcomeScreen          // 空對話時
+  └─ ChatMessagesView
+       ├─ Conversation (左半)
+       │    ├─ HumanMessageBubble / AiMessageBubble
+       │    │    └─ ActivityTimeline (精簡 fallback)
+       │    └─ InputForm  (Effort × Model 選擇)
+       └─ ResearchThinkPanel (右半,寬度 50%)
+            ├─ Header (overallStatus)
+            ├─ Planning Section (totalTasks / currentTask / completed)
+            └─ Tasks Section
+                  └─ TaskCard
+                       └─ StepCard (query / research / reflection / enhancement / evaluation / completion)
+                            └─ Source / Follow-up Details
+</div>
+
+<h3>4.3 三個 UI 「資訊層級」</h3>
+<table>
+<tr><th>層級</th><th>檔案</th><th>呈現內容</th></tr>
+<tr><td>L1 訊息層</td><td>ChatMessagesView</td><td>使用者輸入 / AI 最終 markdown 報告</td></tr>
+<tr><td>L2 事件時間線</td><td>ActivityTimeline</td><td>每個節點觸發時的 1 行摘要(精簡模式 fallback)</td></tr>
+<tr><td>L3 階層思考面板</td><td>ResearchThinkPanel + dataTransformer</td><td>Plan → Task → Step → Detail (sources/queries/decision) 的可摺疊樹狀結構</td></tr>
+</table>
+
+<!-- ============================================================ -->
+<h2 id="sec-langgraph-ui">5. LangGraph 串接 UI:Plan / Task 呈現機制</h2>
+
+<h3>5.1 串接的「五個關鍵接觸點」</h3>
+
+<h4>(A) <code>useStream</code> hook 建立串流</h4>
+<pre><code>const thread = useStream&lt;{
+  messages: Message[];
+  initial_search_query_count: number;
+  max_research_loops: number;
+  reasoning_model: string;
+}&gt;({
+  apiUrl: import.meta.env.DEV ? "http://localhost:2024" : "http://localhost:8123",
+  assistantId: "agent",         // 對應 langgraph.json 的 graphs.agent
+  messagesKey: "messages",       // 告訴 SDK 要把哪個 state 鍵當 messages
+  onFinish: (state) =&gt; { ... },
+  onUpdateEvent: (event) =&gt; { ... }  // 每個節點完成都會呼叫
+});</code></pre>
+<p>SDK 內部會呼叫 <code>POST /threads/{id}/runs/stream</code>,以 SSE 把每個節點的 state delta 推回,封裝為 <code>{ [nodeName]: { ...stateUpdate } }</code> 格式。</p>
+
+<h4>(B) onUpdateEvent:節點 → 時間線項目的映射</h4>
+<pre><code>if (event.generate_query) {
+  processedEvent = { title: "Generating Search Queries",
+                     data: event.generate_query.query_list?.join(", ") };
+} else if (event.web_research) {
+  processedEvent = { title: "Web Research",
+                     data: `Gathered ${n} sources. Related to: ${labels}` };
+} else if (event.reflection) {
+  processedEvent = { title: "Reflection",
+                     data: reflectionData.reflection_is_sufficient
+                       ? "Search successful..."
+                       : `Need more info: ${followUps.join(", ")}` };
+} else if (event.planner_node || event.planner) { ... }
+else if (event.content_enhancement) { ... }
+else if (event.evaluate_research_enhanced) { ... }
+else if (event.record_task_completion) { ... }
+else if (event.finalize_answer) { hasFinalizeEventOccurredRef.current = true; }</code></pre>
+
+<h4>(C) sessionStorage 累積完整事件</h4>
+<p>每個 onUpdateEvent 都把事件物件 push 進 sessionStorage 的 <code>research_events</code> 陣列。這支援:</p>
+<ul>
+  <li>頁面重新整理仍能重建 ThinkPanel(同 tab 內)</li>
+  <li>透過 useMemo 重算 <code>transformEventsToHierarchy</code>,不必額外維護組件狀態樹</li>
+  <li>送 <code>handleSubmit</code> 時會清空 (<code>sessionStorage.removeItem('research_events')</code>)</li>
+</ul>
+
+<h4>(D) dataTransformer:扁平事件 → 階層結構</h4>
+<p>這是整個 UI 串接邏輯的核心。轉換器做三件事:</p>
+<ol>
+  <li><strong>合併最新 state</strong>:遍歷所有事件,逐 key 把物件值淺合併到 <code>latestState</code>(因為 LangGraph 累加器讓每個事件只帶 delta)。</li>
+  <li><strong>建立 Planning 區塊</strong>:從 <code>state.plan</code> 取 task 列表、用 <code>current_task_pointer</code> 標記當前任務。</li>
+  <li><strong>建立 TaskDetail × StepCard</strong>:對「指針 ≤ 當前」的每個 task,從事件流中過濾出對應的 <code>generate_query / web_research / reflection / content_enhancement / evaluate_research_enhanced / record_task_completion</code>,組成 <code>steps: TaskStep[]</code>。</li>
+</ol>
+
+<h4>(E) ResearchThinkPanel 自動展開策略</h4>
+<ul>
+  <li>進行中:展開「有步驟」的任務,逐一顯示 Step。</li>
+  <li>完成 (<code>overallStatus === 'completed'</code>):展開所有任務 + 所有步驟,讓使用者可回顧。</li>
+  <li>useEffect 依 <code>currentTaskId / overallStatus / tasks.length</code> 觸發,避免不必要的重渲。</li>
+</ul>
+
+<h3>5.2 重要的工程細節</h3>
+
+<table>
+<tr><th>議題</th><th>本 repo 的做法</th><th>備註</th></tr>
+<tr><td>節點名 → UI 標題</td><td>硬編碼 if/else 比對 event 的第一層 key</td><td>缺點:後端改名要同步改前端;優點:零依賴、易讀</td></tr>
+<tr><td>State 全量 vs Delta</td><td>把事件 delta 逐次 shallow-merge,假設累加器(operator.add)只增不減</td><td>對於非累加欄位(如 <code>current_task_pointer</code>)新值直接覆寫舊值</td></tr>
+<tr><td>歷史快照</td><td>每當看到 Reflection / Enhancement / Evaluation 事件,延遲 300ms 後把當前 timeline 存到 <code>historicalActivities[messageId]</code></td><td>避免 SDK 還沒把 AI 訊息建好就拿空 ID</td></tr>
+<tr><td>Effort → Loop/Query 換算</td><td>前端 submit 前把 low/medium/high 映射成 (1,1)/(3,3)/(5,10)</td><td>等於把 UI 概念翻譯成後端 Configuration 期待的數值</td></tr>
+<tr><td>取消執行</td><td><code>thread.stop()</code> + <code>window.location.reload()</code></td><td>實作上是「硬重整」,代價是失去當前 messages,但簡單可靠</td></tr>
+</table>
+
+<!-- ============================================================ -->
+<h2 id="sec-hitl">6. Human-in-the-Loop 機制分析</h2>
+
+<div class="callout">
+<strong>誠實的觀察:</strong>此 repo <strong>並未使用 LangGraph 原生的 <code>interrupt()</code> / <code>Command(resume=...)</code> 真正 HITL API</strong>。它的「人類介入」是 pre-run 配置 + run-time 取消,屬於弱形式 HITL。
+</div>
+
+<h3>6.1 已實作的人機互動</h3>
+<ul>
+  <li><strong>Pre-run 配置</strong>:Effort 等級、Reasoning Model 選擇(InputForm.tsx)。</li>
+  <li><strong>Mid-run 中止</strong>:<code>thread.stop()</code> 透過 SDK 呼叫 LangGraph Server 的取消端點。</li>
+  <li><strong>視覺化監督</strong>:Think Panel 即時呈現決策路徑,使用者可知 Agent「為什麼這樣做」。</li>
+</ul>
+
+<h3>6.2 缺少的真 HITL</h3>
+<ul>
+  <li>無 <code>interrupt_before</code> / <code>interrupt_after</code> 設定 —— 不會在某節點前暫停等使用者確認。</li>
+  <li>無 <code>Command(resume=human_input)</code> —— 無法在執行中採納使用者修正並繼續。</li>
+  <li>Plan 是 LLM 全自動產生,使用者不能改 task 列表後再執行。</li>
+</ul>
+
+<h3>6.3 如要加入真 HITL,最小可行改動</h3>
+<pre><code># backend: graph.compile 時加入
+graph = builder.compile(
+    name="pro-search-agent",
+    interrupt_after=["planner"],   # 計畫產生後暫停
+)
+
+# 前端:useStream 提供 .interrupt 與 .submit({command:{resume:...}})
+if (thread.interrupt) {
+  // 顯示 plan 編輯 UI,使用者按 "Approve / Edit"
+  thread.submit(undefined, { command: { resume: editedPlan } });
+}</code></pre>
+
+<!-- ============================================================ -->
+<h2 id="sec-lifecycle">7. 從 LangGraph 串接 UI 的完整生命週期</h2>
+
+<p>以下為使用者在輸入框送出問題 → 看到最終 markdown 報告的完整 12 個步驟,涵蓋網路、狀態、視覺三條時間線。</p>
+
+<div class="lifecycle-step">
+<span class="step-num">Step 1.</span> <strong>使用者操作</strong> — 在 <code>InputForm</code> 輸入問題,選 Effort=medium、Model=gemini-2.5-flash。按 Send 觸發 <code>handleSubmit("...","medium","gemini-2.5-flash...")</code>。
+</div>
+
+<div class="lifecycle-step">
+<span class="step-num">Step 2.</span> <strong>前端轉換 → SDK submit</strong> — App.tsx 把 effort 映射成 (initial_search_query_count=3, max_research_loops=3),清空 sessionStorage 的 <code>research_events</code>,呼叫 <code>thread.submit({ messages, initial_search_query_count, max_research_loops, reasoning_model })</code>。
+</div>
+
+<div class="lifecycle-step">
+<span class="step-num">Step 3.</span> <strong>SDK HTTP 呼叫</strong> — <code>@langchain/langgraph-sdk</code> 內部建立 thread(若無),向 <code>POST /threads/{id}/runs/stream</code> 送出。請求中 assistantId="agent" 對應 <code>langgraph.json</code> 的 <code>graphs.agent</code>。
+</div>
+
+<div class="lifecycle-step">
+<span class="step-num">Step 4.</span> <strong>後端 StateGraph 啟動</strong> — LangGraph Server 注入 OverallState 初始值,從 START 進入 <code>planner_node</code>。Gemini 用 ResearchPlan structured output 回傳 N 個 ResearchTask,設定 <code>plan</code> 與 <code>current_task_pointer=0</code>。SSE 推送第一個事件 <code>{ planner: { plan: [...], user_query, current_task_pointer: 0 } }</code>。
+</div>
+
+<div class="lifecycle-step">
+<span class="step-num">Step 5.</span> <strong>前端首次 onUpdateEvent</strong> — 命中 <code>event.planner_node || event.planner</code> 分支,push <code>{title:"Planning Research Strategy", data:"Generated N research tasks"}</code> 進 <code>processedEventsTimeline</code>;同時把整個 event 物件 push 進 sessionStorage。
+</div>
+
+<div class="lifecycle-step">
+<span class="step-num">Step 6.</span> <strong>dataTransformer 首次重算</strong> — ChatMessagesView 的 useMemo 依賴變更,重新呼叫 <code>transformEventsToHierarchy</code>。發現 <code>state.plan</code> 已存在,建立 <code>planning</code> 區塊與 <code>tasks: TaskDetail[]</code>(目前只有 task[0] 標為 in_progress)。ResearchThinkPanel useEffect 觸發,展開 task[0]。
+</div>
+
+<div class="lifecycle-step">
+<span class="step-num">Step 7.</span> <strong>進入 generate_query → fan-out</strong> — 後端對 task[0].description 呼叫 SearchQueryList structured output,推 <code>{ generate_query: { query_list: [...] } }</code>。<code>continue_to_web_research</code> 條件邊用 <code>Send</code> 平行 fan-out 3 個 <code>web_research</code> 子節點(每個帶 search_query + current_task_id)。
+</div>
+
+<div class="lifecycle-step">
+<span class="step-num">Step 8.</span> <strong>平行 web_research 事件流</strong> — 後端對每個查詢呼叫 <code>genai_client.models.generate_content(tools=[google_search])</code>,取 grounding metadata 與引用插入。前端會收到 3 個獨立的 <code>{ web_research: { sources_gathered: [...], executed_search_queries: [...] } }</code>。dataTransformer 把每個事件展開為一個 web_research Step,顯示 query + sources 卡片。
+</div>
+
+<div class="lifecycle-step">
+<span class="step-num">Step 9.</span> <strong>reflection → 條件路由 → enhancement (可選)</strong> — 後端呼叫 reflection_instructions,得 <code>{reflection_is_sufficient, knowledge_gap, follow_up_queries}</code>。前端會看到一個 <code>{ reflection: {...} }</code> 事件。接著 <code>should_enhance_content</code> 邊判斷是否進 Firecrawl;若進,前端再收一個 <code>{ content_enhancement: { enhancement_status, enhanced_sources_count } }</code>。
+</div>
+
+<div class="lifecycle-step">
+<span class="step-num">Step 10.</span> <strong>evaluate_research_enhanced → 路由決策</strong> — 後端合成 <code>evaluation_is_sufficient</code>,推事件給前端;同時 <code>decide_next_research_step</code> 條件邊決定回 web_research(follow-up Send)或前進到 record_task_completion。Snapshot 機制此時觸發,把當前 timeline 存到 historicalActivities。
+</div>
+
+<div class="lifecycle-step">
+<span class="step-num">Step 11.</span> <strong>record_task_completion → 下一個 task 或 finalize</strong> — 後端把 task[0] 的 ledger entry 寫入,指針 +1,清空 current_task_detailed_findings。<code>decide_next_step_in_plan</code> 若 pointer &lt; len(plan) 回到 generate_query(進入 task[1]),否則進 finalize_answer。前端 dataTransformer 在下個 generate_query 事件來時,自動把 task[0] 標 completed、task[1] 標 in_progress。
+</div>
+
+<div class="lifecycle-step">
+<span class="step-num">Step 12.</span> <strong>finalize_answer + onFinish</strong> — 所有 task 跑完後,finalize 整合 ledger / task_specific_results / report-level enhancement,單次 LLM 產出 markdown,清理引用後寫入 <code>messages</code>(AIMessage)。前端收到 <code>{ finalize_answer: {...} }</code> 設 <code>hasFinalizeEventOccurredRef = true</code>;<code>thread.messages</code> 更新觸發 useEffect 把當前 timeline 永久存到 historicalActivities[lastMessage.id]。ChatMessagesView 渲染 ReactMarkdown,Activity Timeline 自動摺疊。
+</div>
+
+<h3>7.1 事件流時序圖</h3>
+<div class="diagram">
+時間 ──▶
+ User submit ─┐
+              ▼ thread.submit (SDK)
+              │   POST /runs/stream
+              │
+              ├─[event] planner               ─▶ ThinkPanel:planning 區塊建立
+              ├─[event] generate_query        ─▶ Step: "Generating Search Queries"
+              ├─[event] web_research × 3      ─▶ 3 × Step: "Web Research: ..."
+              ├─[event] reflection            ─▶ Step: "Reflection Analysis"
+              ├─[event] content_enhancement   ─▶ Step: "Content Enhancement Analysis"
+              ├─[event] evaluate_research...  ─▶ Step: "Research Quality Evaluation"
+              ├─[event] record_task_completion─▶ Step: "Task Completion Recorded"
+              │                              ↻ (回到 generate_query 處理下一個 task)
+              ├─[event] generate_query (task[1])
+              ├─...
+              ├─[event] finalize_answer       ─▶ ActivityTimeline 摺疊
+              └─[message] AIMessage(content=markdown) ─▶ ReactMarkdown 渲染
+</div>
+
+<h3>7.2 三條狀態維護線</h3>
+<table>
+<tr><th>線</th><th>儲存位置</th><th>用途</th></tr>
+<tr><td>SDK 內部 state</td><td><code>thread.messages</code></td><td>對話訊息,SDK 自動維護</td></tr>
+<tr><td>UI 即時時間線</td><td><code>processedEventsTimeline</code> (useState)</td><td>當前 run 的精簡事件列表</td></tr>
+<tr><td>事件原始資料</td><td>sessionStorage<code>research_events</code></td><td>給 dataTransformer 重算用,跨重渲染穩定</td></tr>
+<tr><td>歷史快照</td><td><code>historicalActivities</code> (useState 物件)</td><td>每則 AI 訊息對應的完整 timeline,翻歷史可看</td></tr>
+</table>
+
+<!-- ============================================================ -->
+<h2 id="sec-pros-cons">8. 優缺點評估</h2>
+
+<div class="grid-2">
+<div class="card pros">
+<h3>✔ 優點</h3>
+<ul>
+  <li><strong>多任務規劃</strong>:把單問題拆成可獨立追蹤的子任務,顯著提升複雜研究問題的答案結構。</li>
+  <li><strong>容錯設計成熟</strong>:reflection 三層 fallback、web_research try/except、Token 預算控制,在 LLM 不穩定時仍可完成 run。</li>
+  <li><strong>UI 思考面板</strong>:把 LangGraph 內部事件視覺化為「計畫 → 任務 → 步驟」階層,可解釋性遠高於原始 chat UI。</li>
+  <li><strong>SDK 整合乾淨</strong>:用 <code>useStream</code> 一個 hook 解決串流 / 訊息 / 取消,前端不必自己處理 SSE。</li>
+  <li><strong>Firecrawl 增強</strong>:對 Google Search 拿不到正文的場景,提供 graceful 升級路徑;沒 API Key 也能無痛跳過。</li>
+  <li><strong>引用系統</strong>:把 Vertex AI 短網址換成可驗證的 <code>[Source: Domain (URL)]</code>,提升可信度。</li>
+</ul>
+</div>
+
+<div class="card cons">
+<h3>✘ 缺點與技術債</h3>
+<ul>
+  <li><strong>真 HITL 缺失</strong>:沒有 interrupt 機制,使用者不能在 plan 階段修正任務。</li>
+  <li><strong>前後端耦合在事件 key</strong>:後端節點名一改,前端的 if/else 大鏈條與 dataTransformer 都要同步改。沒契約層。</li>
+  <li><strong>graph.py 過大 (1221 行)</strong>:節點、邊、引用清理工具、token 工具全擠一檔,違反單一職責。</li>
+  <li><strong>大量 debug console.log</strong>:App.tsx / dataTransformer.tsx / ResearchThinkPanel.tsx 留下生產不該有的 log,且部分仍用簡體中文。</li>
+  <li><strong>本地化混亂</strong>:後端 print 與部分 reflection prompt 混用中文,UI 文字英文,文檔中英 + 簡繁混用。</li>
+  <li><strong>useStream 的 apiUrl 硬編碼</strong>:Dev/Prod 用 <code>import.meta.env.DEV</code> 切換,沒走環境變數,自訂部署不便。</li>
+  <li><strong>取消 = 整頁 reload</strong>:<code>window.location.reload()</code> 太粗暴,會丟失對話歷史。</li>
+  <li><strong>SessionStorage 容量風險</strong>:長 run 累積大量事件可能撞上 5MB 上限,且 tab 關閉即失。</li>
+  <li><strong>finalize 單次 LLM 120k tokens</strong>:成本高,且超量時直接截斷可能丟資訊。</li>
+  <li><strong>Reflection 默認「3 筆即充足」</strong>:Fallback 過於樂觀,可能未達深度即停止研究。</li>
+</ul>
+</div>
+</div>
+
+<!-- ============================================================ -->
+<h2 id="sec-prompt">9. 交付給其他 Coding Agent 的覆現 Prompt</h2>
+
+<p>下方 prompt 為「自包含」(self-contained),可直接貼到 Claude Code / Cursor / GPT-4 等 Coding Agent,讓它在<strong>空 repo</strong> 上覆現本專案的 LangGraph ↔ UI 串接邏輯(不含 Firecrawl / 報告增強等延伸功能)。</p>
+
+<div class="prompt-box">你的任務:從零打造一個「LangGraph 研究 Agent + React 思考面板」的最小可行專案 (MVP),覆現以下串接邏輯。
+
+== 環境 ==
+- Backend: Python 3.11, langgraph, langchain-google-genai, fastapi, langgraph-cli
+- Frontend: React 19 + Vite + TypeScript + @langchain/langgraph-sdk + Tailwind
+- 用 `langgraph dev` 啟動後端在 :2024;前端用 `npm run dev` 在 :5173
+
+== 後端規格 ==
+1. 建立 `backend/langgraph.json`:
+   {
+     "dependencies": ["."],
+     "graphs": { "agent": "./src/agent/graph.py:graph" },
+     "env": ".env"
+   }
+
+2. 在 `src/agent/state.py` 定義 OverallState (TypedDict):
+   - messages: Annotated[list, add_messages]
+   - user_query: str
+   - plan: list                              # planner 產出的任務陣列
+   - current_task_pointer: int               # 當前指針
+   - executed_search_queries: Annotated[list, operator.add]
+   - web_research_result: Annotated[list, operator.add]
+   - sources_gathered: Annotated[list, operator.add]
+   - research_loop_count: int
+   - ledger: Annotated[list, operator.add]   # 每個完成任務的摘要
+   - reflection_is_sufficient: Optional[bool]
+   - reflection_follow_up_queries: Optional[List[str]]
+   - final_report_markdown: Optional[str]
+
+3. 在 `src/agent/graph.py` 建立 StateGraph,節點與邊如下:
+   - planner_node:呼叫 Gemini 用 ResearchPlan(Pydantic, tasks: List[ResearchTask{id,description}]) structured_output,
+     回傳 plan 與 current_task_pointer=0
+   - generate_query:讀 plan[current_task_pointer].description,呼叫 SearchQueryList(query: List[str]) structured_output
+   - continue_to_web_research (conditional edge):用 Send 平行 fan-out 多個 web_research,
+     每個帶 {search_query, id, current_task_id}
+   - web_research:用 google.genai.Client.models.generate_content + tools=[{"google_search":{}}],
+     取 grounding_metadata,輸出 sources_gathered / web_research_result(以 operator.add 累加)
+   - reflection:呼叫 Reflection(is_sufficient, knowledge_gap, follow_up_queries) structured_output,
+     失敗時 fallback 為「sources >= 3 視為 sufficient」
+   - decide_next_research_step (conditional edge):
+       若 evaluation 顯示 sufficient 或 loop >= max_loops:return "record_task_completion"
+       否則 return [Send("web_research", {search_query: q, ...}) for q in follow_up_queries]
+   - record_task_completion_node:把 ledger 加一筆 {task_id, description, findings_summary},
+     pointer +=1,清空 current_task_detailed_findings
+   - decide_next_step_in_plan (conditional edge):
+       pointer < len(plan):return "generate_query"  否則 "finalize_answer"
+   - finalize_answer:整合 ledger 與 web_research_result,單次 LLM 產出 markdown,
+     寫入 final_report_markdown 並 AIMessage 加入 messages
+
+   邊結構:
+     START → planner → generate_query
+     generate_query --(continue_to_web_research)--&gt; web_research
+     web_research → reflection
+     reflection --(decide_next_research_step)--&gt; web_research | record_task_completion
+     record_task_completion --(decide_next_step_in_plan)--&gt; generate_query | finalize_answer
+     finalize_answer → END
+
+   最後:`graph = builder.compile(name="research-agent")`
+
+4. 所有 LLM 呼叫用 langchain_google_genai.ChatGoogleGenerativeAI,model 預設 "gemini-2.5-flash-preview-04-17",
+   API Key 從環境變數 GEMINI_API_KEY 取。
+
+== 前端規格 ==
+1. `frontend/src/App.tsx`:
+   - 用 useStream from "@langchain/langgraph-sdk/react",參數:
+       apiUrl: import.meta.env.DEV ? "http://localhost:2024" : "http://localhost:8123"
+       assistantId: "agent"
+       messagesKey: "messages"
+   - 維護 processedEventsTimeline: ProcessedEvent[] (useState)
+   - 維護 historicalActivities: Record&lt;messageId, ProcessedEvent[]&gt; (useState)
+   - 提供 onUpdateEvent(event),依下面對應表把節點事件轉成 ProcessedEvent:
+       event.planner → {title:"Planning", data:`${plan.length} tasks`}
+       event.generate_query → {title:"Generating Queries", data: query_list.join(", ")}
+       event.web_research → {title:"Web Research", data:`Gathered ${n} sources`}
+       event.reflection → {title:"Reflection", data: is_sufficient ? "Sufficient" : follow_ups.join(",")}
+       event.record_task_completion → {title:"Task Done", data: ledger[0].description}
+       event.finalize_answer → {title:"Finalizing", data:"Composing final answer"}
+   - 每次 onUpdateEvent 也把原始 event 推進 sessionStorage 的 "research_events" 陣列(JSON.stringify)
+   - submit 時清空 sessionStorage("research_events")
+
+2. `frontend/src/utils/dataTransformer.ts` — 把扁平事件轉為階層:
+   - 介面:
+       ProcessedResearchData { planning, tasks: TaskDetail[], currentTaskId, overallStatus }
+       TaskDetail { taskId, description, status:'pending'|'in_progress'|'completed', steps: TaskStep[] }
+       TaskStep { type, title, status, details: StepDetail[] }
+   - 主函式 transformEventsToHierarchy(events, messages):
+       a. 遍歷 events,逐個 key shallow-merge 到 latestState
+       b. 從 latestState.plan + current_task_pointer 建立 planning 與每個 task 的初始狀態
+       c. 對 index ≤ pointer 的 task,過濾事件流組合對應 step:
+          generate_query / web_research(可多個) / reflection / record_task_completion
+       d. 從 events 推斷 overallStatus:
+          有 finalize_answer → 'completed';有 planner → 'researching';否則 'planning'
+
+3. `frontend/src/components/ResearchThinkPanel.tsx`:
+   - 接收 researchData: ProcessedResearchData
+   - 上方顯示 Planning 概況(總任務、當前、已完成)+ 任務列表(高亮當前)
+   - 下方為可摺疊 TaskCard,展開後列出 StepCard;StepCard 再可展開顯示 details
+     (search_queries / sources / analysis / decision)
+   - useEffect 在 researchData 變化時自動展開「有步驟」的任務與其所有步驟;
+     當 overallStatus === 'completed' 時展開全部
+
+4. `frontend/src/components/ChatMessagesView.tsx`:
+   - 兩欄佈局:左半對話 + AiMessageBubble(用 react-markdown 渲染);右半 ResearchThinkPanel
+   - 用 useMemo 從 sessionStorage 讀 events,呼叫 transformEventsToHierarchy 餵給 ThinkPanel
+   - 提供按鈕切換顯示/隱藏 ThinkPanel
+
+5. `frontend/src/components/InputForm.tsx`:
+   - Effort 選單 (low/medium/high) → 提交時映射成 (1,1)/(3,3)/(5,10)
+   - Model 選單 (gemini-2.0-flash / 2.5-flash / 2.5-pro)
+   - 取消按鈕呼叫 thread.stop()
+
+== 重要實作細節 ==
+- LangGraph SDK 串流事件格式:每個事件是 { [nodeName]: stateDeltaForThatNode }。
+  例如 reflection 完成會推 { reflection: { reflection_is_sufficient: false, reflection_follow_up_queries: [...] } }
+- web_research 因為是 Send fan-out 的多副本,前端會收到多個獨立的 web_research 事件,
+  每個是不同 search_query 的結果;dataTransformer 要對所有 web_research 事件都展開為 step。
+- Annotated[list, operator.add] 會讓 LangGraph 自動合併 fan-out 分支的列表;
+  非累加欄位(如 current_task_pointer)新值會直接覆寫舊值。
+- 引用 URL:Google Search grounding 回的是 vertexaisearch.cloud.google.com/id/xxx 短網址,
+  finalize 階段必須用 resolve_urls 把短網址映回原始 URL,並把引用標記從 [vertexaisearch...] 換成
+  人類可讀的 [Source: Domain (URL)]
+- 任務狀態判定:
+  index &lt; current_task_pointer → 'completed'
+  index === current_task_pointer → 'in_progress'
+  index &gt; current_task_pointer → 'pending'
+
+== 驗收標準 ==
+1. `langgraph dev` 與 `npm run dev` 都能無錯啟動。
+2. 在前端輸入「比較 Apple 與 NVIDIA 2024 的 AI 戰略」,可看到:
+   - ThinkPanel 顯示 3-5 個 task(由 planner 生成)
+   - 每個 task 依序變成 in_progress → completed
+   - 每個 task 內部顯示 Generating Queries → 多個 Web Research → Reflection → Task Done
+   - 最終左側出現完整 markdown 報告,引用為 [Source: Domain (URL)] 格式
+3. 中途按取消能停止 run。
+4. 完成後 ThinkPanel 自動展開所有 task 與 step,可回溯整個研究路徑。
+
+== 不要做 ==
+- 不要實作 Firecrawl 增強、報告級增強、Token 預算切分(這些是進階功能,先做 MVP)。
+- 不要把節點名硬編碼進共享常數,直接在 onUpdateEvent / dataTransformer 各自寫 if/else 即可(刻意保持與原專案一致的可讀性)。
+- 不要加 i18n 框架,UI 文字英文即可。
+
+完成後請輸出:目錄樹、graph.py、state.py、App.tsx、dataTransformer.ts、ResearchThinkPanel.tsx 的完整內容,並附上 README 中的啟動步驟。</div>
+
+<!-- ============================================================ -->
+<h2 id="sec-conclusion">10. 結論與建議</h2>
+
+<p>此 repo 是研究「LangGraph 多階段 Agent ↔ React 即時視覺化」的優良參考。其核心價值有三:</p>
+<ol>
+  <li><strong>把抽象 graph 狀態轉成使用者可懂的階層</strong>:這是 LangGraph 應用最普遍的工程難題,本 repo 的 <code>dataTransformer + ResearchThinkPanel</code> 模式可直接複用。</li>
+  <li><strong>多層次的容錯</strong>:LLM structured output 不穩、Google Search 偶爾無結果、Token 爆量,均有對應 fallback,是生產級 Agent 的縮影。</li>
+  <li><strong>「弱 HITL」的 UX 設計</strong>:用 Effort、Model、可解釋面板把使用者納入觀察迴圈,即使沒實作 <code>interrupt()</code> 也提供了相當程度的人類監督。</li>
+</ol>
+
+<p>若要把本專案推向生產,建議優先:</p>
+<ul>
+  <li>引入 LangGraph 原生 <code>interrupt_after=["planner"]</code> 讓使用者編輯 plan。</li>
+  <li>把 onUpdateEvent 的 if/else 重構為「節點名 → 處理函式」的字典,並抽到 <code>eventRegistry.ts</code>。</li>
+  <li>清理 console.log 與中文 print;統一語系。</li>
+  <li>graph.py 拆成 <code>nodes/</code>、<code>edges/</code>、<code>utils/</code> 三個子模組。</li>
+  <li>用 IndexedDB 取代 sessionStorage 以支援長 run。</li>
+  <li>取消改為呼叫 SDK <code>thread.stop()</code> 之後等待 onFinish,而非整頁 reload。</li>
+</ul>
+
+<hr>
+<p class="meta">本報告由 Claude 於 <code>claude/research-langgraph-ui-Tf4pJ</code> 分支撰寫。對應原始碼參考點:
+  <code>backend/src/agent/graph.py:1009-1067</code>(StateGraph 拓樸)、
+  <code>frontend/src/App.tsx:31-240</code>(useStream 與 onUpdateEvent)、
+  <code>frontend/src/utils/dataTransformer.ts:81-201</code>(階層轉換核心)、
+  <code>frontend/src/components/ResearchThinkPanel.tsx:127-227</code>(視覺化面板)。
+</p>
+
+</div>
+</body>
+</html>
